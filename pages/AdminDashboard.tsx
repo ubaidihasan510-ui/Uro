@@ -84,7 +84,7 @@ export const AdminDashboard = () => {
   const handleApprove = async (tx: Transaction) => {
     const msg = tx.type === 'BUY' 
         ? `Approve BUY for ${tx.userName}? Gold will be credited to their account.`
-        : `Approve SELL for ${tx.userName}? ৳${tx.amountFiat.toLocaleString()} will be credited to their Cash Balance.`;
+        : `Confirm SELL approval for ${tx.userName}?\n\nThe system will AUTOMATICALLY credit ৳${tx.amountFiat.toLocaleString()} to their internal Cash Balance.\n\n(No manual bank transfer required at this step).`;
     
     if (!window.confirm(msg)) return;
     
@@ -292,7 +292,7 @@ export const AdminDashboard = () => {
                               {tx.type === 'SELL' && (
                                 <div className="flex-shrink-0 flex flex-col items-center gap-2 justify-center w-32 text-center text-xs text-zinc-500">
                                     <Send size={24} className="text-green-500 mb-2"/>
-                                    Approve to credit wallet.
+                                    Auto-credits Cash Balance.
                                 </div>
                               )}
 
