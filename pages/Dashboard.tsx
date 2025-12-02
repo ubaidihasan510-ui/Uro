@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { mockBackend } from '../services/mockBackend';
 import { GoldPrice, Transaction, PaymentMethodInfo } from '../types';
 import { Button } from '../components/Button';
-import { ArrowUpRight, ArrowDownRight, CheckCircle, X, UploadCloud, Clock, Coins, Lock, TrendingUp, Copy, Users } from 'lucide-react';
+import { ArrowUpRight, ArrowDownRight, CheckCircle, X, UploadCloud, Clock, Coins, Lock, TrendingUp, Copy, Users, Check } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 
 export const Dashboard = () => {
@@ -21,6 +21,9 @@ export const Dashboard = () => {
   const [selectedMethod, setSelectedMethod] = useState('');
   const [screenshot, setScreenshot] = useState<File | null>(null);
   const [sellPaymentDetails, setSellPaymentDetails] = useState('');
+
+  // UI States
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     fetchData();
@@ -80,7 +83,8 @@ export const Dashboard = () => {
   const copyReferral = () => {
       if (user?.referralCode) {
           navigator.clipboard.writeText(user.referralCode);
-          alert('Referral code copied to clipboard!');
+          setCopied(true);
+          setTimeout(() => setCopied(false), 2000);
       }
   };
 
@@ -218,9 +222,13 @@ export const Dashboard = () => {
                             <span className="font-mono text-zinc-200 tracking-wider">{user.referralCode}</span>
                             <button 
                                 onClick={copyReferral}
-                                className="p-1.5 hover:bg-zinc-800 rounded-md text-zinc-500 hover:text-gold-400 transition-colors"
+                                className={`p-1.5 rounded-md transition-colors ${
+                                    copied 
+                                        ? 'bg-gold-500/20 text-gold-400' 
+                                        : 'hover:bg-zinc-800 text-zinc-500 hover:text-gold-400'
+                                }`}
                             >
-                                <Copy size={14} />
+                                {copied ? <Check size={14} /> : <Copy size={14} />}
                             </button>
                         </div>
                     </div>

@@ -83,8 +83,8 @@ export const AdminDashboard = () => {
 
   const handleApprove = async (tx: Transaction) => {
     const msg = tx.type === 'BUY' 
-        ? `Approve BUY for ${tx.userName}? Gold will be credited.`
-        : `Approve SELL for ${tx.userName}? Confirm you have paid them externally.`;
+        ? `Approve BUY for ${tx.userName}? Gold will be credited to their account.`
+        : `Approve SELL for ${tx.userName}? ৳${tx.amountFiat.toLocaleString()} will be credited to their Cash Balance.`;
     
     if (!window.confirm(msg)) return;
     
@@ -272,7 +272,7 @@ export const AdminDashboard = () => {
                                         </div>
                                       ) : (
                                          <div className="col-span-2 bg-red-900/10 border border-red-900/30 p-2 rounded text-red-200">
-                                            <span className="text-red-500 block text-xs uppercase mb-1">Send Funds To:</span>
+                                            <span className="text-red-500 block text-xs uppercase mb-1">User's Details:</span>
                                             <p className="font-mono text-xs">{tx.userPaymentDetails}</p>
                                         </div>
                                       )}
@@ -291,8 +291,8 @@ export const AdminDashboard = () => {
 
                               {tx.type === 'SELL' && (
                                 <div className="flex-shrink-0 flex flex-col items-center gap-2 justify-center w-32 text-center text-xs text-zinc-500">
-                                    <Send size={24} className="text-red-500 mb-2"/>
-                                    Confirm you have sent the funds externally.
+                                    <Send size={24} className="text-green-500 mb-2"/>
+                                    Approve to credit wallet.
                                 </div>
                               )}
 

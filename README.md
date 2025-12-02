@@ -1,20 +1,55 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+# Auro - Premium Gold Investment Platform
 
-# Run and deploy your AI Studio app
+A high-fidelity simulated gold investment platform featuring real-time market simulation, gold mining packages, and a secure transaction management system.
 
-This contains everything you need to run your app locally.
+## Features
 
-View your app in AI Studio: https://ai.studio/apps/drive/1h_V1-FBqTIcjp4sltZ7zKjhM1H-fJIHz
+- **Real-time Market Simulation**: Live gold price updates with trend tracking (Buy/Sell spreads).
+- **Transactions**: Buy and Sell gold with simulated payment gateway integration (Screenshot upload & Admin verification).
+- **Gold Mining**: Lock gold holdings to earn daily passive income (BDT).
+- **Referral System**: Earn 50 BDT for signups + 5% commission on referred users' purchases.
+- **Admin Dashboard**:
+  - Manage daily gold prices.
+  - Approve/Reject Buy & Sell transactions.
+  - Configure Mining Packages (Cost & Daily Profit).
+  - Update Referral Commission Rates.
+  - Manage Payment Method instructions.
+- **Security**: Role-based access control (User/Admin).
 
-## Run Locally
+## Tech Stack
 
-**Prerequisites:**  Node.js
+- **Frontend**: React 19, Tailwind CSS
+- **Icons**: Lucide React
+- **Charts**: Recharts
+- **State Management**: React Context API
+- **Simulation**: LocalStorage-based Mock Backend
 
+## Prerequisites
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+- Node.js (v18 or higher recommended)
+
+## Setup & Running
+
+1.  **Install dependencies:**
+    ```bash
+    npm install
+    ```
+
+2.  **Environment Setup:**
+    Create a `.env.local` file in the root directory and add your Google Gemini API key (optional, for Market Insights feature):
+    ```env
+    API_KEY=your_gemini_api_key_here
+    ```
+
+3.  **Run the application:**
+    ```bash
+    npm run dev
+    ```
+
+4.  **Default Admin Credentials:**
+    - **Email**: `admin@auro.com`
+    - **Password**: `admin123`
+
+## License
+
+Private / Proprietary
