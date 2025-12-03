@@ -1,3 +1,4 @@
+
 # Auro - Premium Gold Investment Platform
 
 A high-fidelity simulated gold investment platform featuring real-time market simulation, gold mining packages, and a secure transaction management system.
@@ -47,8 +48,8 @@ A high-fidelity simulated gold investment platform featuring real-time market si
     ```
 
 4.  **Default Admin Credentials:**
-    - **Email**: `admin@auro.com`
-    - **Password**: `admin123`
+    - **Email**: `ubaidihasan510@gmail.com`
+    - **Password**: `558510`
 
 ## License
 

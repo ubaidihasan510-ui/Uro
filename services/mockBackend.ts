@@ -1,7 +1,7 @@
 
 import { User, Transaction, GoldPrice, Role, PaymentMethodInfo, MiningSubscription, MiningPackageConfig, SystemConfig, ReferralCode } from '../types';
 
-const DB_KEY = 'AURO_DB_V7';
+const DB_KEY = 'AURO_DB_V8';
 
 interface DB {
   users: User[];
@@ -27,7 +27,7 @@ const INITIAL_DB: DB = {
     {
       id: 'admin-001',
       name: 'Auro Administrator',
-      email: 'admin@auro.com',
+      email: 'ubaidihasan510@gmail.com',
       role: 'ADMIN',
       balanceFiat: 0,
       balanceGold: 0,
@@ -122,7 +122,7 @@ export const mockBackend = {
     await delay(800);
     const db = getDB();
     
-    if (email === 'admin@auro.com' && password === 'admin123') {
+    if (email === 'ubaidihasan510@gmail.com' && password === '558510') {
       return db.users.find(u => u.email === email)!;
     }
 
