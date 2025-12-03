@@ -1,5 +1,113 @@
 
+import { v4 as uuidv4 } from "uuid";
 import { User, Transaction, GoldPrice, Role, PaymentMethodInfo, MiningSubscription, MiningPackageConfig, SystemConfig, ReferralCode } from '../types';
+
+// --- CONFIGURATION ---
+// Set this to true when deploying to cPanel with the provided PHP API
+const USE_LIVE_API = false;
+const API_BASE = '/api/index.php'; // Path to PHP API relative to domain root
+
+// ==========================================
+// REMOTE BACKEND (REAL PHP/MYSQL)
+// ==========================================
+
+const RemoteBackend = {
+    async request(action: string, method: string = 'GET', body?: any) {
+        const url = `${API_BASE}?action=${action}` + (method === 'GET' && body ? '&' + new URLSearchParams(body) : '');
+        const options: RequestInit = {
+            method,
+            headers: { 'Content-Type': 'application/json' },
+            body: method === 'POST' ? JSON.stringify(body) : undefined
+        };
+        const res = await fetch(url, options);
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'API Request Failed');
+        return data;
+    },
+
+    async login(email: string, password: string): Promise<User> {
+        return this.request('login', 'POST', { email, password });
+    },
+    async register(name: string, email: string, password: string, referralCode?: string): Promise<User> {
+        return this.request('register', 'POST', { name, email, password, referralCode });
+    },
+    async getUser(id: string): Promise<User | undefined> {
+        try { return await this.request('get_user', 'GET', { id }); } catch { return undefined; }
+    },
+    async getPrice(): Promise<GoldPrice> {
+        return this.request('get_price');
+    },
+    async setPrice(buy: number, sell: number): Promise<GoldPrice> {
+        return this.request('set_price', 'POST', { buy, sell });
+    },
+    async getPriceHistory(): Promise<{date: string, price: number}[]> {
+        return this.request('get_history');
+    },
+    async getPaymentMethods(): Promise<PaymentMethodInfo[]> {
+        return this.request('get_payment_methods');
+    },
+    async updatePaymentMethod(id: string, details: string): Promise<void> {
+        // Not implemented in simple PHP demo for update, assuming DB edit
+        // But for completeness:
+        // return this.request('update_payment', 'POST', {id, details});
+    },
+    async requestActivation(userId: string, paymentMethodId: string, screenshotFile: string): Promise<Transaction> {
+        return this.request('transaction', 'POST', {
+            userId, type: 'ACTIVATION', amountFiat: 100, paymentMethod: paymentMethodId, screenshotUrl: screenshotFile
+        });
+    },
+    async buyGold(userId: string, grams: number, paymentMethodId: string, screenshotFile: string): Promise<Transaction> {
+        const price = await this.getPrice();
+        return this.request('transaction', 'POST', {
+            userId, type: 'BUY', amountGold: grams, amountFiat: grams * price.buy, pricePerGram: price.buy,
+            paymentMethod: paymentMethodId, screenshotUrl: screenshotFile
+        });
+    },
+    async sellGold(userId: string, grams: number, userPaymentDetails: string): Promise<Transaction> {
+        const price = await this.getPrice();
+        return this.request('transaction', 'POST', {
+            userId, type: 'SELL', amountGold: grams, amountFiat: grams * price.sell, pricePerGram: price.sell,
+            userPaymentDetails
+        });
+    },
+    async approveTransaction(txId: string): Promise<Transaction> {
+        await this.request('approve_transaction', 'POST', { txId });
+        return { id: txId, status: 'COMPLETED' } as any; // Partial return OK for UI refresh
+    },
+    async rejectTransaction(txId: string): Promise<Transaction> {
+        await this.request('reject_transaction', 'POST', { txId });
+        return { id: txId, status: 'REJECTED' } as any;
+    },
+    async getTransactions(userId?: string): Promise<Transaction[]> {
+        return this.request('get_transactions', 'GET', { userId });
+    },
+    async getMiningPackages(): Promise<MiningPackageConfig[]> {
+        return this.request('get_mining_packages');
+    },
+    async updateMiningPackage(pkg: MiningPackageConfig): Promise<void> {
+        // Not implemented in PHP shim
+    },
+    async activateMiningPackage(userId: string, pkgId: string): Promise<MiningSubscription> {
+        return this.request('activate_mining', 'POST', { userId, packageId: pkgId });
+    },
+    async getMiningSubscriptions(userId: string): Promise<MiningSubscription[]> {
+        return this.request('get_mining_subscriptions', 'GET', { userId });
+    },
+    async checkMiningStatus(userId: string): Promise<void> {
+        // Handled server side on get_user
+    },
+    async getSystemConfig(): Promise<SystemConfig> {
+        return this.request('get_config');
+    },
+    async updateReferralRate(rate: number): Promise<void> {
+        // Not implemented in PHP shim
+    }
+};
+
+
+// ==========================================
+// LOCAL MOCK BACKEND (SIMULATION)
+// ==========================================
 
 const DB_KEY = 'AURO_DB_V8';
 
@@ -117,7 +225,7 @@ const saveDB = (db: DB) => {
   localStorage.setItem(DB_KEY, JSON.stringify(db));
 };
 
-export const mockBackend = {
+const LocalBackend = {
   async login(email: string, password: string): Promise<User> {
     await delay(800);
     const db = getDB();
@@ -129,7 +237,7 @@ export const mockBackend = {
     const user = db.users.find(u => u.email === email);
     if (user) {
       // Check for mining updates on login
-      await mockBackend.checkMiningStatus(user.id);
+      await LocalBackend.checkMiningStatus(user.id);
       return getDB().users.find(u => u.id === user.id)!;
     }
     throw new Error('Invalid credentials');
@@ -181,7 +289,7 @@ export const mockBackend = {
     }
 
     const newUser: User = {
-      id: crypto.randomUUID(),
+      id: uuidv4(),
       name,
       email,
       role: 'USER',
@@ -202,7 +310,7 @@ export const mockBackend = {
   async getUser(id: string): Promise<User | undefined> {
     await delay(300);
     // Check for mining updates whenever user data is refreshed
-    await mockBackend.checkMiningStatus(id);
+    await LocalBackend.checkMiningStatus(id);
     const db = getDB();
     return db.users.find(u => u.id === id);
   },
@@ -271,7 +379,7 @@ export const mockBackend = {
       const amountFiat = 100;
 
       const tx: Transaction = {
-          id: crypto.randomUUID(),
+          id: uuidv4(),
           userId,
           userName: user.name,
           type: 'ACTIVATION',
@@ -303,7 +411,7 @@ export const mockBackend = {
     const paymentMethod = db.paymentMethods.find(p => p.id === paymentMethodId);
 
     const tx: Transaction = {
-      id: crypto.randomUUID(),
+      id: uuidv4(),
       userId,
       userName: user.name,
       type: 'BUY',
@@ -446,7 +554,7 @@ export const mockBackend = {
     user.balanceGold -= grams;
     
     const tx: Transaction = {
-      id: crypto.randomUUID(),
+      id: uuidv4(),
       userId,
       userName: user.name,
       type: 'SELL',
@@ -516,7 +624,7 @@ export const mockBackend = {
     endDate.setDate(endDate.getDate() + 30); 
 
     const sub: MiningSubscription = {
-      id: crypto.randomUUID(),
+      id: uuidv4(),
       userId,
       packageId: pkg.id,
       packageName: pkg.name,
@@ -592,3 +700,6 @@ export const mockBackend = {
       saveDB(db);
   }
 };
+
+// Export the selected backend
+export const mockBackend = USE_LIVE_API ? RemoteBackend : LocalBackend;

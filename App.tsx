@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { HashRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
@@ -10,7 +9,7 @@ import { AdminDashboard } from './pages/AdminDashboard';
 import { Transactions } from './pages/Transactions';
 import { Mining } from './pages/Mining';
 
-const PrivateRoute = ({ children }: { children: React.ReactNode }): React.ReactElement | null => {
+const PrivateRoute = ({ children }: { children?: React.ReactNode }): React.ReactElement | null => {
   const { isAuthenticated, isLoading } = useAuth();
   
   if (isLoading) {
@@ -24,7 +23,7 @@ const PrivateRoute = ({ children }: { children: React.ReactNode }): React.ReactE
   return isAuthenticated ? <Layout>{children}</Layout> : <Navigate to="/login" />;
 };
 
-const AdminRoute = ({ children }: { children: React.ReactNode }): React.ReactElement | null => {
+const AdminRoute = ({ children }: { children?: React.ReactNode }): React.ReactElement | null => {
   const { user, isAuthenticated, isLoading } = useAuth();
   
   if (isLoading) return <div>Loading...</div>;
