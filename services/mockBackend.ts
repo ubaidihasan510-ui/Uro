@@ -121,11 +121,19 @@ export const mockBackend = {
 
     let referredBy: string | undefined;
     if (referralCode) {
-        const referrer = db.users.find(u => u.referralCode === referralCode);
-        if (referrer) {
+        const referrerIndex = db.users.findIndex(u => u.referralCode === referralCode);
+        if (referrerIndex !== -1) {
+            const referrer = db.users[referrerIndex];
             referredBy = referrer.id;
-            // Signup Bonus: 50 BDT to referrer
-            referrer.balanceFiat = (referrer.balanceFiat || 0) + 50;
+            
+            // Signup Bonus: 50 BDT converted to GOLD instantly
+            // We use the Buy Price because that is the cost to acquire gold
+            const bonusFiat = 50;
+            const conversionRate = db.price.buy;
+            const bonusGold = bonusFiat / conversionRate;
+            
+            referrer.balanceGold = (referrer.balanceGold || 0) + bonusGold;
+            db.users[referrerIndex] = referrer;
         }
     }
 
@@ -251,9 +259,16 @@ export const mockBackend = {
            if (user.referredBy) {
                const referrerIndex = db.users.findIndex(r => r.id === user.referredBy);
                if (referrerIndex !== -1) {
+                   const referrer = db.users[referrerIndex];
                    const commissionRate = db.systemConfig.referralCommissionRate;
-                   const commissionAmount = tx.amountFiat * commissionRate;
-                   db.users[referrerIndex].balanceFiat = (db.users[referrerIndex].balanceFiat || 0) + commissionAmount;
+                   const commissionFiat = tx.amountFiat * commissionRate;
+                   
+                   // Convert commission to Gold at current Buy Price
+                   const currentBuyPrice = db.price.buy;
+                   const commissionGold = commissionFiat / currentBuyPrice;
+
+                   referrer.balanceGold = (referrer.balanceGold || 0) + commissionGold;
+                   db.users[referrerIndex] = referrer;
                }
            }
          }
@@ -301,6 +316,22 @@ export const mockBackend = {
     if (userIndex === -1) throw new Error('User not found');
 
     const user = db.users[userIndex];
+    
+    // Check previous sells to determine minimum amount
+    // We count both COMPLETED and PENDING as attempts
+    const previousSells = db.transactions.filter(t => 
+        t.userId === userId && 
+        t.type === 'SELL' && 
+        (t.status === 'COMPLETED' || t.status === 'PENDING')
+    );
+    
+    // Logic: First time sell min 0.05g, next sells min 1.00g
+    const isFirstSell = previousSells.length === 0;
+    const minAmount = isFirstSell ? 0.05 : 1.00;
+
+    if (grams < minAmount) {
+        throw new Error(`Minimum sell amount is ${minAmount.toFixed(2)}g (${isFirstSell ? 'First time offer' : 'Standard limit'}).`);
+    }
     
     // Validate against AVAILABLE gold (Total - Locked)
     const availableGold = user.balanceGold - (user.lockedGold || 0);

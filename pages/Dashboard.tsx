@@ -24,6 +24,7 @@ export const Dashboard = () => {
 
   // UI States
   const [copied, setCopied] = useState(false);
+  const [minSellLimit, setMinSellLimit] = useState(0.05);
 
   useEffect(() => {
     fetchData();
@@ -40,6 +41,13 @@ export const Dashboard = () => {
     setPaymentMethods(pm);
     if(pm.length > 0 && !selectedMethod) setSelectedMethod(pm[0].id);
     await refreshUser();
+
+    // Determine min sell limit
+    if (user) {
+        const txs = await mockBackend.getTransactions(user.id);
+        const previousSells = txs.filter(t => t.type === 'SELL' && (t.status === 'COMPLETED' || t.status === 'PENDING'));
+        setMinSellLimit(previousSells.length === 0 ? 0.05 : 1.00);
+    }
   };
 
   const handleTrade = async () => {
@@ -277,8 +285,8 @@ export const Dashboard = () => {
                     <div className="relative">
                         <input 
                             type="number"
-                            min="0.1"
-                            step="0.1"
+                            min={tradeType === 'SELL' ? minSellLimit : 0.1}
+                            step="0.01"
                             value={tradeAmount}
                             onChange={(e) => setTradeAmount(e.target.value)}
                             className={`w-full bg-zinc-950 border rounded-lg py-3 px-4 text-zinc-100 outline-none transition-all ${
@@ -290,11 +298,19 @@ export const Dashboard = () => {
                         />
                         <span className="absolute right-4 top-3 text-zinc-500 text-sm">g</span>
                     </div>
-                    {tradeType === 'SELL' && lockedGold > 0 && (
-                        <div className="text-xs text-red-400 mt-1 flex items-center gap-1">
-                            <Lock size={10} />
-                            Available to sell: {availableGold.toFixed(2)}g
-                        </div>
+                    
+                    {tradeType === 'SELL' && (
+                        <>
+                            <div className="text-xs text-zinc-500 mt-1 flex justify-between">
+                                <span>Minimum Sell: {minSellLimit.toFixed(2)}g</span>
+                                {lockedGold > 0 && (
+                                    <span className="text-red-400 flex items-center gap-1">
+                                        <Lock size={10} />
+                                        Avail: {availableGold.toFixed(2)}g
+                                    </span>
+                                )}
+                            </div>
+                        </>
                     )}
 
                     <div className="flex justify-between text-sm py-2 border-t border-zinc-800 mt-4">
