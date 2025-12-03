@@ -3,6 +3,11 @@ export type Role = 'USER' | 'ADMIN';
 
 export type TransactionStatus = 'PENDING' | 'COMPLETED' | 'REJECTED';
 
+export interface ReferralCode {
+  code: string;
+  isUsed: boolean;
+}
+
 export interface User {
   id: string;
   name: string;
@@ -11,7 +16,8 @@ export interface User {
   balanceFiat: number; // Used for accumulating Mining Profits (BDT) + Referral Earnings
   balanceGold: number; // Total Grams
   lockedGold: number; // Grams locked in mining
-  referralCode: string; // Unique code to share
+  referralStatus: 'INACTIVE' | 'PENDING' | 'ACTIVE';
+  referralCodes: ReferralCode[]; 
   referredBy?: string; // ID of the user who referred this user
   avatarUrl?: string;
 }
@@ -20,11 +26,11 @@ export interface Transaction {
   id: string;
   userId: string;
   userName: string;
-  type: 'BUY' | 'SELL' | 'DEPOSIT';
+  type: 'BUY' | 'SELL' | 'DEPOSIT' | 'ACTIVATION';
   status: TransactionStatus;
   amountGold?: number; // Grams
   amountFiat: number; // BDT
-  pricePerGram: number; // At time of transaction
+  pricePerGram?: number; // At time of transaction (Optional for Activation)
   timestamp: string;
   screenshotUrl?: string;
   paymentMethod?: string;

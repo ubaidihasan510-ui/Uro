@@ -2,9 +2,9 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { mockBackend } from '../services/mockBackend';
-import { GoldPrice, Transaction, PaymentMethodInfo } from '../types';
+import { GoldPrice, Transaction, PaymentMethodInfo, ReferralCode } from '../types';
 import { Button } from '../components/Button';
-import { ArrowUpRight, ArrowDownRight, CheckCircle, X, UploadCloud, Clock, Coins, Lock, TrendingUp, Copy, Users, Check } from 'lucide-react';
+import { ArrowUpRight, ArrowDownRight, CheckCircle, X, UploadCloud, Clock, Coins, Lock, TrendingUp, Copy, Users, Check, Gift } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 
 export const Dashboard = () => {
@@ -23,8 +23,11 @@ export const Dashboard = () => {
   const [sellPaymentDetails, setSellPaymentDetails] = useState('');
 
   // UI States
-  const [copied, setCopied] = useState(false);
+  const [copiedCode, setCopiedCode] = useState<string | null>(null);
   const [minSellLimit, setMinSellLimit] = useState(0.05);
+
+  // Activation States
+  const [isActivating, setIsActivating] = useState(false);
 
   useEffect(() => {
     fetchData();
@@ -61,7 +64,7 @@ export const Dashboard = () => {
             setLoading(false);
             return;
         }
-        // Simulate file upload by just passing name/fake url
+        // Simulate file upload
         const fakeFileUrl = `uploaded_ss_${Date.now()}.jpg`;
         txn = await mockBackend.buyGold(user.id, parseFloat(tradeAmount), selectedMethod, fakeFileUrl);
       } else {
@@ -84,24 +87,40 @@ export const Dashboard = () => {
     }
   };
 
+  const handleActivation = async () => {
+      if(!user) return;
+      if (!screenshot) {
+          alert("Please upload payment proof for activation.");
+          return;
+      }
+      try {
+          setLoading(true);
+          const fakeFileUrl = `activation_ss_${Date.now()}.jpg`;
+          await mockBackend.requestActivation(user.id, selectedMethod, fakeFileUrl);
+          setIsActivating(false);
+          setScreenshot(null);
+          await fetchData();
+          alert("Activation request submitted! Please wait for admin approval.");
+      } catch (e: any) {
+          alert(e.message);
+      } finally {
+          setLoading(false);
+      }
+  };
+
   const closeSuccessModal = () => {
     setSuccessTxn(null);
   };
 
-  const copyReferral = () => {
-      if (user?.referralCode) {
-          navigator.clipboard.writeText(user.referralCode);
-          setCopied(true);
-          setTimeout(() => setCopied(false), 2000);
-      }
+  const copyCode = (code: string) => {
+      navigator.clipboard.writeText(code);
+      setCopiedCode(code);
+      setTimeout(() => setCopiedCode(null), 2000);
   };
 
   if (!user || !price) return <div className="text-gold-400 animate-pulse">Loading market data...</div>;
 
   const currentPaymentInfo = paymentMethods.find(p => p.id === selectedMethod);
-
-  // Calculate Current Value in BDT
-  // Logic: (Gold Holdings * Sell Price) + Cash Balance (balanceFiat)
   const goldValue = user.balanceGold * price.sell;
   const cashBalance = user.balanceFiat || 0;
   const totalValue = goldValue + cashBalance;
@@ -127,8 +146,7 @@ export const Dashboard = () => {
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        
-        {/* Current Value Card */}
+        {/* Current Value */}
         <div className="bg-zinc-900/50 backdrop-blur-md border border-zinc-800 p-6 rounded-2xl">
           <div className="flex items-center gap-4 mb-4">
             <div className="p-3 bg-zinc-800 rounded-lg text-gold-400">
@@ -155,7 +173,7 @@ export const Dashboard = () => {
           </div>
         </div>
 
-        {/* Gold Holdings with 3D Coin */}
+        {/* Gold Holdings */}
         <div className="bg-zinc-900/50 backdrop-blur-md border border-zinc-800 p-6 rounded-2xl relative overflow-hidden group">
           <div className="absolute -right-12 -top-12 w-32 h-32 bg-gold-500/10 blur-[50px] rounded-full group-hover:bg-gold-500/20 transition-all duration-700" />
           <div className="flex justify-between items-center relative z-10 h-full">
@@ -185,8 +203,8 @@ export const Dashboard = () => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Chart Section */}
         <div className="lg:col-span-2 space-y-6">
+            {/* Chart */}
             <div className="bg-zinc-900/50 border border-zinc-800 p-6 rounded-2xl">
                  <div className="flex justify-between items-center mb-6">
                     <h3 className="text-lg font-medium text-zinc-200">Price Trend (BDT/g)</h3>
@@ -214,37 +232,79 @@ export const Dashboard = () => {
                  </div>
             </div>
 
-            {/* Referral Card */}
+            {/* Refer & Earn */}
             <div className="bg-gradient-to-r from-zinc-900 to-zinc-900/50 border border-zinc-800 p-6 rounded-2xl relative overflow-hidden">
                 <div className="absolute right-0 top-0 h-full w-1/3 bg-gradient-to-l from-gold-500/5 to-transparent pointer-events-none" />
-                <div className="flex items-start justify-between relative z-10">
-                    <div>
+                <div className="flex flex-col md:flex-row md:items-start justify-between relative z-10 gap-6">
+                    <div className="max-w-md">
                         <div className="flex items-center gap-2 mb-2 text-gold-400">
                             <Users size={20} />
                             <span className="text-sm font-medium uppercase tracking-wider">Refer & Earn</span>
                         </div>
-                        <p className="text-zinc-400 text-sm max-w-sm mb-4">
+                        <p className="text-zinc-400 text-sm mb-4">
                             Invite friends to Auro. You get 50 BDT when they sign up, plus 5% of all their gold purchases forever.
                         </p>
-                        <div className="flex items-center gap-2 bg-zinc-950/80 p-1.5 pl-3 rounded-lg border border-zinc-800 w-fit">
-                            <span className="font-mono text-zinc-200 tracking-wider">{user.referralCode}</span>
-                            <button 
-                                onClick={copyReferral}
-                                className={`p-1.5 rounded-md transition-colors ${
-                                    copied 
-                                        ? 'bg-gold-500/20 text-gold-400' 
-                                        : 'hover:bg-zinc-800 text-zinc-500 hover:text-gold-400'
-                                }`}
-                            >
-                                {copied ? <Check size={14} /> : <Copy size={14} />}
-                            </button>
-                        </div>
+                        
+                        {/* Status: INACTIVE */}
+                        {user.referralStatus === 'INACTIVE' && (
+                            <div className="mt-4">
+                                <Button onClick={() => setIsActivating(true)} className="!py-2 !px-4 text-sm">
+                                    <Gift size={16} />
+                                    Activate (100 BDT)
+                                </Button>
+                                <p className="text-xs text-zinc-500 mt-2">One-time payment to unlock 4 unique referral codes.</p>
+                            </div>
+                        )}
+
+                        {/* Status: PENDING */}
+                        {user.referralStatus === 'PENDING' && (
+                            <div className="mt-4 bg-amber-900/20 border border-amber-900/50 p-3 rounded-lg flex items-center gap-3">
+                                <Clock size={20} className="text-amber-500" />
+                                <div>
+                                    <p className="text-amber-400 font-medium text-sm">Activation Request Pending</p>
+                                    <p className="text-amber-500/70 text-xs">Admin verification in progress.</p>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Status: ACTIVE */}
+                        {user.referralStatus === 'ACTIVE' && (
+                            <div className="mt-4 space-y-2">
+                                <p className="text-xs text-zinc-500 uppercase tracking-wide mb-2">Your Referral Codes (One-time use)</p>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                    {user.referralCodes.map((rc, idx) => (
+                                        <div key={idx} className={`flex items-center justify-between p-2 rounded-lg border text-sm ${
+                                            rc.isUsed 
+                                                ? 'bg-zinc-950/50 border-zinc-800 text-zinc-600' 
+                                                : 'bg-zinc-950 border-gold-500/30 text-zinc-200'
+                                        }`}>
+                                            <span className={`font-mono ${rc.isUsed ? 'line-through decoration-zinc-700' : ''}`}>
+                                                {rc.code}
+                                            </span>
+                                            {rc.isUsed ? (
+                                                <span className="text-[10px] uppercase bg-zinc-800 px-1.5 py-0.5 rounded text-zinc-500">Used</span>
+                                            ) : (
+                                                <button 
+                                                    onClick={() => copyCode(rc.code)}
+                                                    className="p-1 hover:text-gold-400 transition-colors"
+                                                >
+                                                    {copiedCode === rc.code ? <Check size={14} className="text-green-500"/> : <Copy size={14} />}
+                                                </button>
+                                            )}
+                                        </div>
+                                    ))}
+                                    {user.referralCodes.length === 0 && (
+                                        <div className="col-span-2 text-xs text-zinc-500 italic">No codes generated yet. Contact admin.</div>
+                                    )}
+                                </div>
+                            </div>
+                        )}
                     </div>
                 </div>
             </div>
         </div>
 
-        {/* Quick Trade Section */}
+        {/* Quick Trade */}
         <div className="bg-gradient-to-br from-zinc-900 to-zinc-950 border border-gold-500/20 p-6 rounded-2xl shadow-xl shadow-black/50 flex flex-col">
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-xl font-serif text-gold-400">Trade Gold</h3>
@@ -300,17 +360,15 @@ export const Dashboard = () => {
                     </div>
                     
                     {tradeType === 'SELL' && (
-                        <>
-                            <div className="text-xs text-zinc-500 mt-1 flex justify-between">
-                                <span>Minimum Sell: {minSellLimit.toFixed(2)}g</span>
-                                {lockedGold > 0 && (
-                                    <span className="text-red-400 flex items-center gap-1">
-                                        <Lock size={10} />
-                                        Avail: {availableGold.toFixed(2)}g
-                                    </span>
-                                )}
-                            </div>
-                        </>
+                        <div className="text-xs text-zinc-500 mt-1 flex justify-between">
+                            <span>Minimum Sell: {minSellLimit.toFixed(2)}g</span>
+                            {lockedGold > 0 && (
+                                <span className="text-red-400 flex items-center gap-1">
+                                    <Lock size={10} />
+                                    Avail: {availableGold.toFixed(2)}g
+                                </span>
+                            )}
+                        </div>
                     )}
 
                     <div className="flex justify-between text-sm py-2 border-t border-zinc-800 mt-4">
@@ -391,8 +449,63 @@ export const Dashboard = () => {
             </div>
         </div>
       </div>
-      
-      {/* Footer Mobile Spacer is handled by padding-bottom on wrapper */}
+
+      {/* Activation Modal */}
+      {isActivating && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-300">
+               <div className="bg-zinc-900 border border-zinc-700 w-full max-w-sm rounded-2xl p-6 relative shadow-2xl shadow-gold-900/20">
+                   <button onClick={() => setIsActivating(false)} className="absolute top-4 right-4 text-zinc-500 hover:text-zinc-300"><X size={20}/></button>
+                   <h3 className="text-xl font-serif text-zinc-100 mb-4">Activate Referral Account</h3>
+                   <div className="space-y-4">
+                       <div className="flex justify-between text-sm py-2 border-b border-zinc-800">
+                           <span className="text-zinc-500">Activation Fee</span>
+                           <span className="text-gold-400 font-bold">৳100</span>
+                       </div>
+                       
+                        <div>
+                            <label className="text-xs text-zinc-500 uppercase tracking-wide">Payment Method</label>
+                            <select 
+                                value={selectedMethod}
+                                onChange={(e) => setSelectedMethod(e.target.value)}
+                                className="w-full mt-1 bg-zinc-950 border border-zinc-700 rounded-lg p-2 text-zinc-300 text-sm outline-none focus:border-gold-500"
+                            >
+                                {paymentMethods.map(m => (
+                                    <option key={m.id} value={m.id}>{m.name}</option>
+                                ))}
+                            </select>
+                        </div>
+                        
+                        {currentPaymentInfo && (
+                            <div className="bg-zinc-900/50 p-3 rounded-lg border border-zinc-800 text-xs text-zinc-400 whitespace-pre-line leading-relaxed">
+                                <span className="text-gold-500 font-bold block mb-1">Instructions:</span>
+                                {currentPaymentInfo.details}
+                            </div>
+                        )}
+
+                        <div>
+                            <label className="text-xs text-zinc-500 uppercase tracking-wide mb-1 block">Proof of Payment</label>
+                            <div className="relative">
+                                <input 
+                                    type="file" 
+                                    accept="image/*"
+                                    onChange={(e) => setScreenshot(e.target.files?.[0] || null)}
+                                    className="hidden" 
+                                    id="activation-ss-upload"
+                                />
+                                <label htmlFor="activation-ss-upload" className="flex items-center justify-center gap-2 w-full p-3 bg-zinc-950 border border-dashed border-zinc-700 rounded-lg text-zinc-400 text-sm cursor-pointer hover:border-gold-500/50 hover:text-gold-400 transition-all">
+                                    <UploadCloud size={16} />
+                                    {screenshot ? screenshot.name : "Upload Screenshot"}
+                                </label>
+                            </div>
+                        </div>
+
+                        <Button onClick={handleActivation} isLoading={loading} className="w-full mt-4">
+                            Submit Activation Request
+                        </Button>
+                   </div>
+               </div>
+          </div>
+      )}
 
       {/* Success Modal */}
       {successTxn && (

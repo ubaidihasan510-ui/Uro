@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 import { mockBackend } from '../services/mockBackend';
 import { Transaction } from '../types';
@@ -62,7 +63,8 @@ export const Transactions = ({ adminView = false }: { adminView?: boolean }) => 
                   <span className={`text-xs font-medium ${
                     tx.type === 'BUY' ? 'text-gold-400' : 
                     tx.type === 'SELL' ? 'text-red-400' :
-                    'text-blue-400'
+                    tx.type === 'ACTIVATION' ? 'text-blue-400' :
+                    'text-zinc-400'
                   }`}>
                     {tx.type}
                   </span>
@@ -72,7 +74,7 @@ export const Transactions = ({ adminView = false }: { adminView?: boolean }) => 
                   {tx.amountGold ? `${tx.amountGold.toFixed(2)}g` : '-'}
                 </td>
                 <td className="px-6 py-4 text-right text-zinc-400 text-sm">
-                  ৳{tx.pricePerGram.toFixed(2)}
+                  {tx.pricePerGram ? `৳${tx.pricePerGram.toFixed(2)}` : '-'}
                 </td>
                 <td className="px-6 py-4 text-right text-zinc-200">
                   ৳{tx.amountFiat.toLocaleString()}

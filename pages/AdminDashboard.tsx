@@ -3,7 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { mockBackend } from '../services/mockBackend';
 import { GoldPrice, Transaction, PaymentMethodInfo, MiningPackageConfig } from '../types';
 import { Button } from '../components/Button';
-import { ArrowUp, ArrowDown, Check, X, FileText, Settings, CreditCard, User as UserIcon, Send, Pickaxe, Users } from 'lucide-react';
+import { ArrowUp, ArrowDown, Check, X, FileText, Settings, CreditCard, User as UserIcon, Send, Pickaxe, Users, ShieldCheck } from 'lucide-react';
 import { format } from 'date-fns';
 
 export const AdminDashboard = () => {
@@ -82,9 +82,14 @@ export const AdminDashboard = () => {
   };
 
   const handleApprove = async (tx: Transaction) => {
-    const msg = tx.type === 'BUY' 
-        ? `Approve BUY for ${tx.userName}? Gold will be credited to their account.`
-        : `Confirm SELL approval for ${tx.userName}?\n\nThe system will AUTOMATICALLY credit ৳${tx.amountFiat.toLocaleString()} to their internal Cash Balance.\n\n(No manual bank transfer required at this step).`;
+    let msg = '';
+    if (tx.type === 'BUY') {
+        msg = `Approve BUY for ${tx.userName}? Gold will be credited to their account.`;
+    } else if (tx.type === 'ACTIVATION') {
+        msg = `Approve Account Activation for ${tx.userName}? 4 Referral codes will be generated for them.`;
+    } else {
+        msg = `Confirm SELL approval for ${tx.userName}?\n\nThe system will AUTOMATICALLY credit ৳${tx.amountFiat.toLocaleString()} to their internal Cash Balance.\n\n(No manual bank transfer required at this step).`;
+    }
     
     if (!window.confirm(msg)) return;
     
@@ -237,7 +242,11 @@ export const AdminDashboard = () => {
                               <div className="flex-1 space-y-2">
                                   <div className="flex items-center gap-2">
                                     <span className="bg-amber-900/30 text-amber-500 text-xs px-2 py-0.5 rounded font-medium border border-amber-900/50">PENDING REVIEW</span>
-                                    <span className={`text-xs px-2 py-0.5 rounded font-medium border ${tx.type === 'BUY' ? 'bg-gold-900/30 border-gold-900/50 text-gold-400' : 'bg-red-900/30 border-red-900/50 text-red-400'}`}>
+                                    <span className={`text-xs px-2 py-0.5 rounded font-medium border ${
+                                        tx.type === 'BUY' ? 'bg-gold-900/30 border-gold-900/50 text-gold-400' : 
+                                        tx.type === 'SELL' ? 'bg-red-900/30 border-red-900/50 text-red-400' :
+                                        'bg-blue-900/30 border-blue-900/50 text-blue-400'
+                                    }`}>
                                         {tx.type}
                                     </span>
                                     <span className="text-zinc-500 text-xs">{format(new Date(tx.timestamp), 'MMM dd, HH:mm')}</span>
@@ -252,34 +261,43 @@ export const AdminDashboard = () => {
                                      </div>
                                   </div>
                                   <div className="mt-2 grid grid-cols-2 gap-4 text-sm">
-                                      <div>
-                                          <span className="text-zinc-500 block">
-                                            {tx.type === 'BUY' ? 'Requested Gold' : 'Gold To Sell'}
-                                          </span>
-                                          <span className="text-gold-400 font-bold">{tx.amountGold?.toFixed(2)}g</span>
-                                      </div>
-                                      <div>
-                                          <span className="text-zinc-500 block">
-                                            {tx.type === 'BUY' ? 'Amount Paid' : 'Amount To Pay'}
-                                          </span>
-                                          <span className="text-zinc-200 font-bold">৳{tx.amountFiat.toLocaleString()}</span>
-                                      </div>
-                                      
-                                      {tx.type === 'BUY' ? (
-                                        <div>
-                                            <span className="text-zinc-500 block">Payment Method</span>
-                                            <span className="text-zinc-300">{tx.paymentMethod}</span>
-                                        </div>
+                                      {tx.type === 'ACTIVATION' ? (
+                                          <div className="col-span-2">
+                                              <span className="text-zinc-500 block">Activation Fee</span>
+                                              <span className="text-zinc-200 font-bold">৳{tx.amountFiat.toLocaleString()}</span>
+                                          </div>
                                       ) : (
+                                          <>
+                                              <div>
+                                                  <span className="text-zinc-500 block">
+                                                    {tx.type === 'BUY' ? 'Requested Gold' : 'Gold To Sell'}
+                                                  </span>
+                                                  <span className="text-gold-400 font-bold">{tx.amountGold?.toFixed(2)}g</span>
+                                              </div>
+                                              <div>
+                                                  <span className="text-zinc-500 block">
+                                                    {tx.type === 'BUY' ? 'Amount Paid' : 'Amount To Pay'}
+                                                  </span>
+                                                  <span className="text-zinc-200 font-bold">৳{tx.amountFiat.toLocaleString()}</span>
+                                              </div>
+                                          </>
+                                      )}
+                                      
+                                      {tx.type === 'SELL' ? (
                                          <div className="col-span-2 bg-red-900/10 border border-red-900/30 p-2 rounded text-red-200">
                                             <span className="text-red-500 block text-xs uppercase mb-1">User's Details:</span>
                                             <p className="font-mono text-xs">{tx.userPaymentDetails}</p>
+                                        </div>
+                                      ) : (
+                                        <div>
+                                            <span className="text-zinc-500 block">Payment Method</span>
+                                            <span className="text-zinc-300">{tx.paymentMethod}</span>
                                         </div>
                                       )}
                                   </div>
                               </div>
 
-                              {tx.type === 'BUY' && (
+                              {(tx.type === 'BUY' || tx.type === 'ACTIVATION') && (
                                 <div className="flex-shrink-0 flex flex-col items-center gap-2">
                                     <div className="w-32 h-20 bg-zinc-950 border border-dashed border-zinc-700 rounded flex flex-col items-center justify-center text-zinc-600 text-xs p-2">
                                         <FileText size={16} className="mb-1" />

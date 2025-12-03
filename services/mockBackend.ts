@@ -1,7 +1,7 @@
 
-import { User, Transaction, GoldPrice, Role, PaymentMethodInfo, MiningSubscription, MiningPackageConfig, SystemConfig } from '../types';
+import { User, Transaction, GoldPrice, Role, PaymentMethodInfo, MiningSubscription, MiningPackageConfig, SystemConfig, ReferralCode } from '../types';
 
-const DB_KEY = 'AURO_DB_V5';
+const DB_KEY = 'AURO_DB_V7';
 
 interface DB {
   users: User[];
@@ -16,8 +16,8 @@ interface DB {
 
 // Updated to realistic BDT prices per gram
 const INITIAL_PRICE: GoldPrice = {
-  buy: 13500.00,
-  sell: 12800.00,
+  buy: 16468.90,
+  sell: 15800.00,
   lastUpdated: new Date().toISOString(),
   trend: 'UP'
 };
@@ -32,19 +32,25 @@ const INITIAL_DB: DB = {
       balanceFiat: 0,
       balanceGold: 0,
       lockedGold: 0,
-      referralCode: 'ADMIN',
+      referralStatus: 'ACTIVE',
+      referralCodes: [
+          { code: 'ADMIN-01', isUsed: false },
+          { code: 'ADMIN-02', isUsed: false },
+          { code: 'ADMIN-03', isUsed: false },
+          { code: 'ADMIN-04', isUsed: false }
+      ],
       avatarUrl: 'https://picsum.photos/200'
     }
   ],
   transactions: [],
   price: INITIAL_PRICE,
   priceHistory: [
-     { date: '2023-10-20', price: 12100.00 },
-     { date: '2023-10-21', price: 12250.00 },
-     { date: '2023-10-22', price: 12200.00 },
-     { date: '2023-10-23', price: 12800.00 },
-     { date: '2023-10-24', price: 13100.00 },
-     { date: '2023-10-25', price: 13500.00 },
+     { date: '2025-10-20', price: 15900.00 },
+     { date: '2025-10-21', price: 16100.00 },
+     { date: '2025-10-22', price: 16050.00 },
+     { date: '2025-10-23', price: 16250.00 },
+     { date: '2025-10-24', price: 16380.00 },
+     { date: '2025-10-25', price: 16468.90 },
   ],
   paymentMethods: [
     { 
@@ -83,9 +89,26 @@ const getDB = (): DB => {
   if (!db.miningSubscriptions) db.miningSubscriptions = [];
   if (!db.miningPackages) db.miningPackages = INITIAL_DB.miningPackages;
   if (!db.systemConfig) db.systemConfig = INITIAL_DB.systemConfig;
+  
   db.users.forEach((u: any) => { 
       if (u.lockedGold === undefined) u.lockedGold = 0; 
-      if (!u.referralCode) u.referralCode = 'REF-' + u.id.slice(0,6).toUpperCase();
+      // Migrate old referralCode string to new array structure if needed
+      if (!u.referralCodes) {
+          u.referralStatus = 'INACTIVE';
+          u.referralCodes = [];
+      }
+      // Ensure admin is always active
+      if (u.role === 'ADMIN' && u.referralStatus !== 'ACTIVE') {
+          u.referralStatus = 'ACTIVE';
+          if(u.referralCodes.length === 0) {
+              u.referralCodes = [
+                { code: 'ADMIN-01', isUsed: false },
+                { code: 'ADMIN-02', isUsed: false },
+                { code: 'ADMIN-03', isUsed: false },
+                { code: 'ADMIN-04', isUsed: false }
+              ];
+          }
+      }
   });
   return db;
 };
@@ -120,20 +143,40 @@ export const mockBackend = {
     }
 
     let referredBy: string | undefined;
+    
+    // Referral Logic
     if (referralCode) {
-        const referrerIndex = db.users.findIndex(u => u.referralCode === referralCode);
+        // Find user who owns this specific code AND it is unused
+        let referrerIndex = -1;
+        let codeIndex = -1;
+
+        for (let i = 0; i < db.users.length; i++) {
+            const u = db.users[i];
+            const cIdx = u.referralCodes.findIndex(rc => rc.code === referralCode && !rc.isUsed);
+            if (cIdx !== -1) {
+                referrerIndex = i;
+                codeIndex = cIdx;
+                break;
+            }
+        }
+
         if (referrerIndex !== -1) {
             const referrer = db.users[referrerIndex];
             referredBy = referrer.id;
             
+            // Mark code as used
+            referrer.referralCodes[codeIndex].isUsed = true;
+
             // Signup Bonus: 50 BDT converted to GOLD instantly
-            // We use the Buy Price because that is the cost to acquire gold
             const bonusFiat = 50;
             const conversionRate = db.price.buy;
             const bonusGold = bonusFiat / conversionRate;
             
             referrer.balanceGold = (referrer.balanceGold || 0) + bonusGold;
             db.users[referrerIndex] = referrer;
+        } else {
+            // Code provided but invalid or used
+             throw new Error("Invalid or expired referral code.");
         }
     }
 
@@ -145,7 +188,8 @@ export const mockBackend = {
       balanceFiat: 0, 
       balanceGold: 0,
       lockedGold: 0,
-      referralCode: 'REF-' + Math.random().toString(36).substring(2, 8).toUpperCase(),
+      referralStatus: 'INACTIVE',
+      referralCodes: [],
       referredBy,
       avatarUrl: `https://picsum.photos/seed/${email}/200`
     };
@@ -210,6 +254,44 @@ export const mockBackend = {
     }
   },
 
+  async requestActivation(userId: string, paymentMethodId: string, screenshotFile: string): Promise<Transaction> {
+      await delay(1200);
+      const db = getDB();
+      const userIndex = db.users.findIndex(u => u.id === userId);
+      if (userIndex === -1) throw new Error('User not found');
+      
+      const user = db.users[userIndex];
+      // Check if already active or pending
+      if (user.referralStatus === 'ACTIVE') throw new Error('Account already active.');
+      if (user.referralStatus === 'PENDING') throw new Error('Activation already pending.');
+
+      const paymentMethod = db.paymentMethods.find(p => p.id === paymentMethodId);
+      
+      // Activation Fee
+      const amountFiat = 100;
+
+      const tx: Transaction = {
+          id: crypto.randomUUID(),
+          userId,
+          userName: user.name,
+          type: 'ACTIVATION',
+          status: 'PENDING',
+          amountFiat,
+          timestamp: new Date().toISOString(),
+          paymentMethod: paymentMethod?.name || 'External',
+          screenshotUrl: screenshotFile
+      };
+
+      // Set user to pending status immediately? Or wait for approve?
+      // Usually good to show PENDING status on user profile
+      user.referralStatus = 'PENDING';
+      
+      db.users[userIndex] = user;
+      db.transactions.unshift(tx);
+      saveDB(db);
+      return tx;
+  },
+
   async buyGold(userId: string, grams: number, paymentMethodId: string, screenshotFile: string): Promise<Transaction> {
     await delay(1500);
     const db = getDB();
@@ -248,15 +330,30 @@ export const mockBackend = {
     
     if (tx.status !== 'PENDING') throw new Error('Transaction is not pending');
     
-    if (tx.type === 'BUY') {
-         const finalGoldAmount = tx.amountGold || 0;
-         const userIndex = db.users.findIndex(u => u.id === tx.userId);
-         if (userIndex !== -1) {
-           const user = db.users[userIndex];
-           user.balanceGold += finalGoldAmount;
+    const userIndex = db.users.findIndex(u => u.id === tx.userId);
+    if (userIndex !== -1) {
+        const user = db.users[userIndex];
+
+        if (tx.type === 'ACTIVATION') {
+            // Activate User Referral
+            user.referralStatus = 'ACTIVE';
+            
+            // Generate 4 Unique Codes
+            const baseCode = 'REF-' + Math.random().toString(36).substring(2, 6).toUpperCase();
+            user.referralCodes = [
+                { code: `${baseCode}-01`, isUsed: false },
+                { code: `${baseCode}-02`, isUsed: false },
+                { code: `${baseCode}-03`, isUsed: false },
+                { code: `${baseCode}-04`, isUsed: false }
+            ];
+            db.users[userIndex] = user;
+        } 
+        else if (tx.type === 'BUY') {
+            const finalGoldAmount = tx.amountGold || 0;
+            user.balanceGold += finalGoldAmount;
            
-           // Referral Commission Logic
-           if (user.referredBy) {
+            // Referral Commission Logic
+            if (user.referredBy) {
                const referrerIndex = db.users.findIndex(r => r.id === user.referredBy);
                if (referrerIndex !== -1) {
                    const referrer = db.users[referrerIndex];
@@ -270,18 +367,17 @@ export const mockBackend = {
                    referrer.balanceGold = (referrer.balanceGold || 0) + commissionGold;
                    db.users[referrerIndex] = referrer;
                }
-           }
-         }
-        tx.status = 'COMPLETED';
-    } else if (tx.type === 'SELL') {
-        // Credit the user's fiat balance with the sale proceeds
-        const userIndex = db.users.findIndex(u => u.id === tx.userId);
-        if (userIndex !== -1) {
-            db.users[userIndex].balanceFiat = (db.users[userIndex].balanceFiat || 0) + tx.amountFiat;
+            }
+            db.users[userIndex] = user;
+        } 
+        else if (tx.type === 'SELL') {
+            // Credit the user's fiat balance with the sale proceeds
+            user.balanceFiat = (user.balanceFiat || 0) + tx.amountFiat;
+            db.users[userIndex] = user;
         }
-        tx.status = 'COMPLETED';
     }
 
+    tx.status = 'COMPLETED';
     db.transactions[txIndex] = tx;
     saveDB(db);
     return tx;
@@ -294,13 +390,20 @@ export const mockBackend = {
     if (txIndex === -1) throw new Error('Transaction not found');
     
     const tx = db.transactions[txIndex];
-    
+    const userIndex = db.users.findIndex(u => u.id === tx.userId);
+
     // If SELL, refund the gold (note: refund to available balance)
     if (tx.type === 'SELL' && tx.status === 'PENDING') {
-         const userIndex = db.users.findIndex(u => u.id === tx.userId);
          if (userIndex !== -1) {
              db.users[userIndex].balanceGold += tx.amountGold!;
          }
+    }
+    
+    // If Activation Rejected, reset status to INACTIVE so they can try again
+    if (tx.type === 'ACTIVATION' && tx.status === 'PENDING') {
+        if (userIndex !== -1) {
+            db.users[userIndex].referralStatus = 'INACTIVE';
+        }
     }
 
     tx.status = 'REJECTED';
@@ -318,14 +421,12 @@ export const mockBackend = {
     const user = db.users[userIndex];
     
     // Check previous sells to determine minimum amount
-    // We count both COMPLETED and PENDING as attempts
     const previousSells = db.transactions.filter(t => 
         t.userId === userId && 
         t.type === 'SELL' && 
         (t.status === 'COMPLETED' || t.status === 'PENDING')
     );
     
-    // Logic: First time sell min 0.05g, next sells min 1.00g
     const isFirstSell = previousSells.length === 0;
     const minAmount = isFirstSell ? 0.05 : 1.00;
 
@@ -333,11 +434,10 @@ export const mockBackend = {
         throw new Error(`Minimum sell amount is ${minAmount.toFixed(2)}g (${isFirstSell ? 'First time offer' : 'Standard limit'}).`);
     }
     
-    // Validate against AVAILABLE gold (Total - Locked)
     const availableGold = user.balanceGold - (user.lockedGold || 0);
 
     if (availableGold < grams) {
-        throw new Error(`Insufficient available gold. You have ${availableGold.toFixed(2)}g available (some may be locked in mining).`);
+        throw new Error(`Insufficient available gold. You have ${availableGold.toFixed(2)}g available.`);
     }
 
     const value = grams * db.price.sell;
@@ -402,21 +502,18 @@ export const mockBackend = {
     const user = db.users[userIndex];
     const sellPrice = db.price.sell;
     
-    // Calculate gold required based on sell price (Current Value logic)
     const requiredGold = pkg.cost / sellPrice;
     const availableGold = user.balanceGold - (user.lockedGold || 0);
 
     if (availableGold < requiredGold) {
-        throw new Error(`Insufficient gold value. You need approx ${requiredGold.toFixed(2)}g available to lock ৳${pkg.cost.toLocaleString()}.`);
+        throw new Error(`Insufficient gold value. You need approx ${requiredGold.toFixed(2)}g available.`);
     }
 
-    // Lock the gold
     user.lockedGold = (user.lockedGold || 0) + requiredGold;
 
-    // Create Subscription
     const now = new Date();
     const endDate = new Date(now);
-    endDate.setDate(endDate.getDate() + 30); // 30 Days from now
+    endDate.setDate(endDate.getDate() + 30); 
 
     const sub: MiningSubscription = {
       id: crypto.randomUUID(),
@@ -457,26 +554,20 @@ export const mockBackend = {
             const end = new Date(sub.endDate);
             const lastPay = new Date(sub.lastPayout);
             
-            // Check for payout
-            // Calculate days elapsed since last payout
             const diffMs = now.getTime() - lastPay.getTime();
             const daysElapsed = Math.floor(diffMs / (1000 * 60 * 60 * 24));
 
             if (daysElapsed >= 1) {
-                // Credit User
                 const profit = daysElapsed * sub.dailyProfit;
                 db.users[userIndex].balanceFiat = (db.users[userIndex].balanceFiat || 0) + profit;
                 
-                // Update lastPayout pointer
                 const newLastPayout = new Date(lastPay);
                 newLastPayout.setDate(newLastPayout.getDate() + daysElapsed);
                 sub.lastPayout = newLastPayout.toISOString();
                 userUpdated = true;
             }
 
-            // Check for expiration
             if (now >= end) {
-                // Unlock Gold
                 db.users[userIndex].lockedGold = Math.max(0, (db.users[userIndex].lockedGold || 0) - sub.lockedGoldAmount);
                 sub.status = 'COMPLETED';
                 userUpdated = true;
